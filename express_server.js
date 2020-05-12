@@ -21,6 +21,7 @@ const urlDatabase = {
   "9sm5xK": "http://www.google.com"
 };
 
+// GET /
 app.get("/", (req, res) => {
   res.send("Hello!");
 });
@@ -33,20 +34,24 @@ app.get("/hello", (req, res) => {
   res.send("<html><body>Hello <b>World</b></body></html>\n");
 });
 
+// GET /urls
 app.get("/urls", (req, res) => {
   let templateVars = { urls: urlDatabase };
   res.render("urls_index", templateVars);
 });
 
+// GET /urls/new
 app.get("/urls/new", (req, res) => {
   res.render("urls_new");
 });
 
+// GET /urls/:shortURL
 app.get("/urls/:shortURL", (req, res) => {
   let templateVars = { shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL] };
   res.render("urls_show", templateVars);
 });
 
+// POST /urls
 app.post("/urls", (req, res) => {
   const shortURL = generateRandomString();
   urlDatabase[shortURL] = req.body.longURL;
@@ -54,10 +59,18 @@ app.post("/urls", (req, res) => {
   res.redirect(`/urls/${shortURL}`);
 });
 
+// GET /u/:shortURL
 app.get("/u/:shortURL", (req, res) => {
   const longURL = urlDatabase[req.params.shortURL]; 
   res.redirect(longURL);
 });
+
+// POST /urls/:shortURL/delete
+app.post("/urls/:shortURL/delete", (req, res) => {
+  delete urlDatabase[req.params.shortURL];
+  res.redirect("/urls");
+});
+
 
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}!`);
