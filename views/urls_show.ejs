@@ -16,10 +16,10 @@
       </div>
       <div class="card-footer text-muted">
         <h2>Edit</h2>
-        <form method="POST" action="/urls/<%= shortURL %>">
+        <form class="form-inline justify-content-center" method="POST" action="/urls/<%= shortURL %>">
           <div class="form-group">
             <label for="newURL">New URL:</label>
-            <input type="text" name="newURL" value="<%= longURL %>" placeholder="http://">
+            <input class="ml-1 mr-1" type="text" name="newURL" value="<%= longURL %>" placeholder="http://">
           </div>
           <button type="submit" class="btn btn-primary">Submit</button>
         </form>

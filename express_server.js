@@ -17,27 +17,24 @@ function generateRandomString() {
   return result;
 }
 
-
 const urlDatabase = {
   "b2xVn2": "http://www.lighthouselabs.ca",
   "9sm5xK": "http://www.google.com"
 };
 
-// GET /
+/* 
+* GET /
+* Redirect to /urls page
+*/
 app.get("/", (req, res) => {
   res.redirect("/urls");
 });
 
-// POST /urls
-app.post("/urls", (req, res) => {
-  const shortURL = generateRandomString();
-  urlDatabase[shortURL] = req.body.longURL;
-  console.log(urlDatabase);
-  res.redirect(`/urls/${shortURL}`);
-});
-
-// GET /urls
-// BROWSE
+/*  
+* GET /urls
+* BROWSE
+* Display all entries in the database
+*/
 app.get("/urls", (req, res) => {
   let templateVars = {
     username: req.cookies["username"],
@@ -46,8 +43,21 @@ app.get("/urls", (req, res) => {
   res.render("urls_index", templateVars);
 });
 
-// GET /urls/new
-// ADD
+/* 
+* POST /urls
+* ADD
+* Add new entry to the database
+*/
+app.post("/urls", (req, res) => {
+  const shortURL = generateRandomString();
+  urlDatabase[shortURL] = req.body.longURL;
+  res.redirect(`/urls/${shortURL}`);
+});
+
+/* 
+* GET /urls/new
+* Render a page containing a form for creating new entries
+*/
 app.get("/urls/new", (req, res) => {
   let templateVars = {
     username: req.cookies["username"]
@@ -55,8 +65,11 @@ app.get("/urls/new", (req, res) => {
   res.render("urls_new", templateVars);
 });
 
-// GET /urls/:shortURL
-// READ
+/* 
+* GET /urls/:shortURL
+* READ
+* Show a particular entry of the database
+*/
 app.get("/urls/:shortURL", (req, res) => {
   let templateVars = {
     username: req.cookies["username"],
@@ -66,38 +79,58 @@ app.get("/urls/:shortURL", (req, res) => {
   res.render("urls_show", templateVars);
 });
 
-// POST /urls/:shortURL/delete
-// DELETE
+/*
+* POST /urls/:shortURL/delete
+* DELETE
+* Delete a particular entry in the database
+*/
 app.post("/urls/:shortURL/delete", (req, res) => {
   delete urlDatabase[req.params.shortURL];
   res.redirect("/urls");
 });
 
-// POST /urls/:shortURL
-// EDIT
+/*
+* POST /urls/:shortURL
+* EDIT
+* Edit a particular entry in the databse
+*/
 app.post("/urls/:shortURL", (req, res) => {
   urlDatabase[req.params.shortURL] = req.body.newURL;
   res.redirect("/urls");
 });
 
-// GET /u/:shortURL
+/* 
+* GET /u/:shortURL
+* Redirect to a long URL which corresponds to a passed short URL
+*/
 app.get("/u/:shortURL", (req, res) => {
   const longURL = urlDatabase[req.params.shortURL]; 
   res.redirect(longURL);
 });
 
-// POST /login
+/* 
+* POST /login
+* Login by creating a cookie with a username
+*/
 app.post("/login", (req, res) => {
   res.cookie("username", req.body.username);
   res.redirect("/urls");
 });
 
-// POST /logout
+/*
+* POST /logout
+* Logout by deleting a cookie with a username
+*/
 app.post("/logout", (req, res) => {
   res.clearCookie("username");
   res.redirect("/urls");
 });
 
+/*
+Routes for testing purposes
+*/
+
+// Get json version of a database
 app.get("/urls.json", (req, res) => {
   res.json(urlDatabase);
 });
