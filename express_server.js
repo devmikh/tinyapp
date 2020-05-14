@@ -1,38 +1,44 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-const cookieParser = require("cookie-parser");
+// const cookieParser = require("cookie-parser");
+const cookieSession = require("cookie-session");
+const bcrypt = require("bcrypt");
+const { getUserByEmail } = require("./helpers");
 const app = express();
 const PORT = 8080;
 
 app.use(bodyParser.urlencoded({extended: true}));
-app.use(cookieParser());
+app.use(cookieSession({
+  name: 'session',
+  keys: ["secret", "rotation"]
+}));
 app.set("view engine", "ejs");
 
 const urlDatabase = {
   "b2xVn2": {
     longURL: "http://www.lighthouselabs.ca",
-    userID: "1a2b3c",
+    userID: "q02mvO",
   },
   "9sm5xK": {
     longURL: "http://www.google.com",
-    userID: "1a2b3c"
+    userID: "q02mvO"
   },
   "8fk8d2": {
     longURL: "http://www.reddit.com",
-    userID: "4d5e6f"
+    userID: "Of2Aqa"
   }
 };
 
 const users = { 
-  "1a2b3c": {
-    id: "1a2b3c", 
-    email: "mishacyb@gmail.com", 
-    password: "123"
+  'q02mvO': { 
+    id: 'q02mvO',
+    email: 'user@example.com',
+    password: '$2b$10$FJjGsupxLl8KHvmaWfw3juvKedP.msKc4Ir.gmbg9Ac.9gPfIxG8m'
   },
- "4d5e6f": {
-    id: "4d5e6f", 
-    email: "user2@example.com", 
-    password: "456"
+  Of2Aqa: { 
+    id: 'Of2Aqa',
+    email: 'user2@example.com',
+    password: '$2b$10$1StNFPrbyCh1EhXmDMhniu7a8JIVIXS0T/PPSLlwHqjorroZq7ynO' 
   }
 };
 
@@ -45,24 +51,7 @@ function generateRandomString() {
   return result;
 }
 
-// Checks if the user with given an email exists in the database
-function emailExists(email) {
-  for (let user in users) {
-    if (users[user].email === email) {
-      return true;
-    }
-  }
-  return false;
-}
 
-// Returns a user from the database given an email
-function findUser(email) {
-  for (let user in users) {
-    if (users[user].email === email) {
-      return users[user];
-    }
-  }
-}
 
 // Returns urls belonging to the user with a given id
 function urlsForUser(id) {
@@ -81,7 +70,7 @@ function urlsForUser(id) {
 * If a user is not logged in, redirect to /login page
 */
 app.get("/", (req, res) => {
-  const user = users[req.cookies.user_id];
+  const user = users[req.session.user_id];
   if (user) {
     res.redirect("/urls");
   } else {
@@ -96,7 +85,7 @@ app.get("/", (req, res) => {
 * If a user is not logged in, send an error message
 */
 app.get("/urls", (req, res) => {
-  const user = users[req.cookies.user_id];
+  const user = users[req.session.user_id];
   if (user) {
     let templateVars = {
       user: user,
@@ -115,12 +104,12 @@ app.get("/urls", (req, res) => {
 * If a user is not logged in, send an error message
 */
 app.post("/urls", (req, res) => {
-  const user = users[req.cookies.user_id];
+  const user = users[req.session.user_id];
   if (user) {
     const shortURL = generateRandomString();
     urlDatabase[shortURL] = {};
     urlDatabase[shortURL].longURL = req.body.longURL;
-    urlDatabase[shortURL].userID = req.cookies.user_id;
+    urlDatabase[shortURL].userID = req.session.user_id;
     res.redirect(`/urls/${shortURL}`);
   } else {
     res.status(403).send("Error 403: access denied, cannot add a new entry while not logged in\n");
@@ -133,7 +122,7 @@ app.post("/urls", (req, res) => {
 * If a user is not logged in, send an error message
 */
 app.get("/urls/new", (req, res) => {
-  const user = users[req.cookies.user_id];
+  const user = users[req.session.user_id];
   if (user) {
     let templateVars = {
       user: user
@@ -152,7 +141,7 @@ app.get("/urls/new", (req, res) => {
 * If a user is nog logged in, send an error message
 */
 app.get("/urls/:shortURL", (req, res) => {
-  const user = users[req.cookies.user_id];
+  const user = users[req.session.user_id];
   if (urlDatabase[req.params.shortURL]) {
     if (user && user.id === urlDatabase[req.params.shortURL].userID) {
       let templateVars = {
@@ -176,7 +165,7 @@ app.get("/urls/:shortURL", (req, res) => {
 * If a user is not logged in, send an error message
 */
 app.post("/urls/:shortURL/delete", (req, res) => {
-  const user = users[req.cookies.user_id];
+  const user = users[req.session.user_id];
   if (user && user.id === urlDatabase[req.params.shortURL].userID) {
     delete urlDatabase[req.params.shortURL];
     res.redirect("/urls");
@@ -193,7 +182,7 @@ app.post("/urls/:shortURL/delete", (req, res) => {
 * If a user is not logged in, send an error message
 */
 app.post("/urls/:shortURL", (req, res) => {
-  const user = users[req.cookies.user_id];
+  const user = users[req.session.user_id];
   if (user && user.id === urlDatabase[req.params.shortURL].userID) {
     urlDatabase[req.params.shortURL].longURL = req.body.newURL;
     res.redirect("/urls");
@@ -221,7 +210,7 @@ app.get("/u/:shortURL", (req, res) => {
 * If a user is not logged in, render login page
 */
 app.get("/login", (req, res) => {
-  const user = users[req.cookies.user_id];
+  const user = users[req.session.user_id];
   if (user) {
     res.redirect("/urls");
   } else {
@@ -238,10 +227,10 @@ app.get("/login", (req, res) => {
 */
 app.post("/login", (req, res) => {
     const { email, password } = req.body;
-    if (emailExists(email)) {
-      const user = findUser(email);
-      if (user.password === password) {
-        res.cookie("user_id", user.id);
+    const user = getUserByEmail(email, users);
+    if (user) {
+      if (bcrypt.compareSync(password, user.password)) {
+        req.session.user_id = user.id;
         res.redirect("/urls");
       } else {
         res.status(403);
@@ -259,7 +248,7 @@ app.post("/login", (req, res) => {
 * Clear the cookie "user_id" and redirect to /urls
 */
 app.post("/logout", (req, res) => {
-  res.clearCookie("user_id");
+  req.session = null;
   res.redirect("/urls");
 });
 
@@ -269,7 +258,7 @@ app.post("/logout", (req, res) => {
 * If a user is not logged in, open user registration form
 */
 app.get("/register", (req, res) => {
-  const user = users[req.cookies.user_id];
+  const user = users[req.session.user_id];
   if (user) {
     res.redirect("/urls");
   } else {
@@ -288,20 +277,20 @@ app.post("/register", (req, res) => {
   if (email === "" || password === "") {
     res.status(400).send("Error 400: some fields are empty\n");
   } else {
-    if (!emailExists(email)) {
+    if (!getUserByEmail(email, users)) {
       const id = generateRandomString();
+      const hashedPassword = bcrypt.hashSync(password, 10);
       users[id] = {
         id,
         email,
-        password,
+        password: hashedPassword
       };
-      res.cookie("user_id", id);
+      req.session.user_id = id;
       res.redirect("/urls");
     } else {
       res.status(400).send("Error 400: email already taken\n");
     }
   }
-  console.log(users);
 });
 
 app.listen(PORT, () => {
