@@ -9,20 +9,30 @@ app.use(cookieParser());
 app.set("view engine", "ejs");
 
 const urlDatabase = {
-  "b2xVn2": "http://www.lighthouselabs.ca",
-  "9sm5xK": "http://www.google.com"
+  "b2xVn2": {
+    longURL: "http://www.lighthouselabs.ca",
+    userID: "1a2b3c",
+  },
+  "9sm5xK": {
+    longURL: "http://www.google.com",
+    userID: "1a2b3c"
+  },
+  "8fk8d2": {
+    longURL: "http://www.reddit.com",
+    userID: "4d5e6f"
+  }
 };
 
 const users = { 
-  "userRandomID": {
-    id: "userRandomID", 
-    email: "user@example.com", 
-    password: "purple-monkey-dinosaur"
+  "1a2b3c": {
+    id: "1a2b3c", 
+    email: "mishacyb@gmail.com", 
+    password: "123"
   },
- "user2RandomID": {
-    id: "user2RandomID", 
+ "4d5e6f": {
+    id: "4d5e6f", 
     email: "user2@example.com", 
-    password: "dishwasher-funk"
+    password: "456"
   }
 };
 
@@ -52,12 +62,27 @@ function findUser(email) {
   }
 }
 
+function urlsForUser(id) {
+  const result = {};
+  for (let url in urlDatabase) {
+    if (urlDatabase[url].userID === id) {
+      result[url] = urlDatabase[url];
+    }
+  }
+  return result;
+}
+
 /* 
 * GET /
 * Redirect to /urls page
 */
 app.get("/", (req, res) => {
-  res.redirect("/urls");
+  const user = users[req.cookies.user_id];
+  if (!user) {
+    res.redirect("/login");
+  } else {
+    res.redirect("/urls");
+  }
 });
 
 /*  
@@ -67,11 +92,16 @@ app.get("/", (req, res) => {
 */
 app.get("/urls", (req, res) => {
   const user = users[req.cookies.user_id];
-  let templateVars = {
-    user: user,
-    urls: urlDatabase,
-  };
-  res.render("urls_index", templateVars);
+  if (!user) {
+    res.send("Please register or login first!");
+  } else {
+    let templateVars = {
+      user: user,
+      urls: urlsForUser(user.id),
+    };
+    res.render("urls_index", templateVars);
+  }
+  
 });
 
 /* 
@@ -81,8 +111,11 @@ app.get("/urls", (req, res) => {
 */
 app.post("/urls", (req, res) => {
   const shortURL = generateRandomString();
-  urlDatabase[shortURL] = req.body.longURL;
+  urlDatabase[shortURL] = {};
+  urlDatabase[shortURL].longURL = req.body.longURL;
+  urlDatabase[shortURL].userID = req.cookies.user_id;
   res.redirect(`/urls/${shortURL}`);
+  console.log(urlDatabase);
 });
 
 /* 
@@ -91,10 +124,15 @@ app.post("/urls", (req, res) => {
 */
 app.get("/urls/new", (req, res) => {
   const user = users[req.cookies.user_id];
-  let templateVars = {
-    user: user
-  };
-  res.render("urls_new", templateVars);
+  if (user) {
+    let templateVars = {
+      user: user
+    };
+    res.render("urls_new", templateVars);
+  } else {
+    res.redirect("/login");
+  }
+  
 });
 
 /* 
@@ -104,12 +142,16 @@ app.get("/urls/new", (req, res) => {
 */
 app.get("/urls/:shortURL", (req, res) => {
   const user = users[req.cookies.user_id];
-  let templateVars = {
-    user: user,
-    shortURL: req.params.shortURL,
-    longURL: urlDatabase[req.params.shortURL],
-  };
-  res.render("urls_show", templateVars);
+  if (user && user.id === urlDatabase[req.params.shortURL].userID) {
+    let templateVars = {
+      user: user,
+      shortURL: req.params.shortURL,
+      longURL: urlDatabase[req.params.shortURL].longURL,
+    };
+    res.render("urls_show", templateVars);
+  } else {
+    res.send("Access denied, can't open url");
+  }
 });
 
 /*
@@ -118,8 +160,15 @@ app.get("/urls/:shortURL", (req, res) => {
 * Delete a particular entry in the database
 */
 app.post("/urls/:shortURL/delete", (req, res) => {
-  delete urlDatabase[req.params.shortURL];
-  res.redirect("/urls");
+  const user = users[req.cookies.user_id];
+  if (user && user.id === urlDatabase[req.params.shortURL].userID) {
+    delete urlDatabase[req.params.shortURL];
+    res.redirect("/urls");
+  } else {
+    res.status(401);
+    res.send("Access denied, can't delete url");
+  }
+  
 });
 
 /*
@@ -128,8 +177,15 @@ app.post("/urls/:shortURL/delete", (req, res) => {
 * Edit a particular entry in the databse
 */
 app.post("/urls/:shortURL", (req, res) => {
-  urlDatabase[req.params.shortURL] = req.body.newURL;
-  res.redirect("/urls");
+  const user = users[req.cookies.user_id];
+  if (user && user.id === urlDatabase[req.params.shortURL].userID) {
+    urlDatabase[req.params.shortURL].longURL = req.body.newURL;
+    res.redirect("/urls");
+  } else {
+    res.status(401);
+    res.send("Access denied, can't edit url");
+  }
+  
 });
 
 /* 
@@ -137,7 +193,7 @@ app.post("/urls/:shortURL", (req, res) => {
 * Redirect to a long URL which corresponds to a passed short URL
 */
 app.get("/u/:shortURL", (req, res) => {
-  const longURL = urlDatabase[req.params.shortURL]; 
+  const longURL = urlDatabase[req.params.shortURL].longURL; 
   res.redirect(longURL);
 });
 
@@ -172,7 +228,7 @@ app.post("/login", (req, res) => {
 */
 app.post("/logout", (req, res) => {
   res.clearCookie("user_id");
-  res.redirect("/urls");
+  res.redirect("/login");
 });
 
 /*
