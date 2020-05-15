@@ -1,18 +1,18 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-// const cookieParser = require("cookie-parser");
 const cookieSession = require("cookie-session");
 const bcrypt = require("bcrypt");
-const { getUserByEmail } = require("./helpers");
+const { getUserByEmail, urlsForUser, generateRandomString } = require("./helpers");
+
 const app = express();
 const PORT = 8080;
 
+app.set("view engine", "ejs");
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(cookieSession({
   name: 'session',
   keys: ["secret", "rotation"]
 }));
-app.set("view engine", "ejs");
 
 const urlDatabase = {
   "b2xVn2": {
@@ -21,50 +21,28 @@ const urlDatabase = {
   },
   "9sm5xK": {
     longURL: "http://www.google.com",
-    userID: "q02mvO"
+    userID: "q02mvO",
   },
   "8fk8d2": {
     longURL: "http://www.reddit.com",
-    userID: "Of2Aqa"
-  }
+    userID: "Of2Aqa",
+  },
 };
 
-const users = { 
-  'q02mvO': { 
+const users = {
+  'q02mvO': {
     id: 'q02mvO',
     email: 'user@example.com',
-    password: '$2b$10$FJjGsupxLl8KHvmaWfw3juvKedP.msKc4Ir.gmbg9Ac.9gPfIxG8m'
+    password: '$2b$10$FJjGsupxLl8KHvmaWfw3juvKedP.msKc4Ir.gmbg9Ac.9gPfIxG8m',
   },
-  Of2Aqa: { 
+  'Of2Aqa': {
     id: 'Of2Aqa',
     email: 'user2@example.com',
-    password: '$2b$10$1StNFPrbyCh1EhXmDMhniu7a8JIVIXS0T/PPSLlwHqjorroZq7ynO' 
-  }
+    password: '$2b$10$1StNFPrbyCh1EhXmDMhniu7a8JIVIXS0T/PPSLlwHqjorroZq7ynO',
+  },
 };
 
-function generateRandomString() {
-  let result = '';
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  for (let i = 0; i < 6; i++) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length));
-  }
-  return result;
-}
-
-
-
-// Returns urls belonging to the user with a given id
-function urlsForUser(id) {
-  const result = {};
-  for (let url in urlDatabase) {
-    if (urlDatabase[url].userID === id) {
-      result[url] = urlDatabase[url];
-    }
-  }
-  return result;
-}
-
-/* 
+/*
 * GET /
 * If a user is logged in, redirect to /urls page
 * If a user is not logged in, redirect to /login page
@@ -78,7 +56,7 @@ app.get("/", (req, res) => {
   }
 });
 
-/*  
+/*
 * GET /urls
 * BROWSE
 * If a user is logged in, display all entries in the database
@@ -88,8 +66,8 @@ app.get("/urls", (req, res) => {
   const user = users[req.session.user_id];
   if (user) {
     let templateVars = {
-      user: user,
-      urls: urlsForUser(user.id),
+      user,
+      urls: urlsForUser(user.id, urlDatabase),
     };
     res.render("urls_index", templateVars);
   } else {
@@ -97,7 +75,7 @@ app.get("/urls", (req, res) => {
   }
 });
 
-/* 
+/*
 * POST /urls
 * ADD
 * If a user is logged in, add a new entry to the database
@@ -107,16 +85,17 @@ app.post("/urls", (req, res) => {
   const user = users[req.session.user_id];
   if (user) {
     const shortURL = generateRandomString();
-    urlDatabase[shortURL] = {};
-    urlDatabase[shortURL].longURL = req.body.longURL;
-    urlDatabase[shortURL].userID = req.session.user_id;
+    urlDatabase[shortURL] = {
+      longURL: req.body.longURL,
+      userID: user.id,
+    };
     res.redirect(`/urls/${shortURL}`);
   } else {
     res.status(403).send("Error 403: access denied, cannot add a new entry while not logged in\n");
   }
 });
 
-/* 
+/*
 * GET /urls/new
 * If a user is logged in, render a page containing a form for creating new entries
 * If a user is not logged in, send an error message
@@ -124,19 +103,16 @@ app.post("/urls", (req, res) => {
 app.get("/urls/new", (req, res) => {
   const user = users[req.session.user_id];
   if (user) {
-    let templateVars = {
-      user: user
-    };
-    res.render("urls_new", templateVars);
+    res.render("urls_new", { user });
   } else {
     res.redirect("/login");
   }
 });
 
-/* 
+/*
 * GET /urls/:shortURL
 * READ
-* If a user is logged in, show the particular entry
+* If a user is logged in, show a particular entry
 * If the entry does not exist, send an error message
 * If a user is nog logged in, send an error message
 */
@@ -145,7 +121,7 @@ app.get("/urls/:shortURL", (req, res) => {
   if (urlDatabase[req.params.shortURL]) {
     if (user && user.id === urlDatabase[req.params.shortURL].userID) {
       let templateVars = {
-        user: user,
+        user,
         shortURL: req.params.shortURL,
         longURL: urlDatabase[req.params.shortURL].longURL,
       };
@@ -191,13 +167,13 @@ app.post("/urls/:shortURL", (req, res) => {
   }
 });
 
-/* 
+/*
 * GET /u/:shortURL
 * Redirect to the long URL which corresponds to the passed short URL
 */
 app.get("/u/:shortURL", (req, res) => {
   if (urlDatabase[req.params.shortURL]) {
-    const longURL = urlDatabase[req.params.shortURL].longURL; 
+    const longURL = urlDatabase[req.params.shortURL].longURL;
     res.redirect(longURL);
   } else {
     res.status(404).send("Error 404: url does not exist\n");
@@ -218,7 +194,7 @@ app.get("/login", (req, res) => {
   }
 });
 
-/* 
+/*
 * POST /login
 * LOGIN
 * Logs the user in
@@ -226,20 +202,20 @@ app.get("/login", (req, res) => {
 * If the password does not match with the provided email, send an error message
 */
 app.post("/login", (req, res) => {
-    const { email, password } = req.body;
-    const user = getUserByEmail(email, users);
-    if (user) {
-      if (bcrypt.compareSync(password, user.password)) {
-        req.session.user_id = user.id;
-        res.redirect("/urls");
-      } else {
-        res.status(403);
-        res.send("Error 403: wrong password\n");
-      }
+  const { email, password } = req.body;
+  const user = getUserByEmail(email, users);
+  if (user) {
+    if (bcrypt.compareSync(password, user.password)) {
+      req.session.user_id = user.id;
+      res.redirect("/urls");
     } else {
       res.status(403);
-      res.send("Error 403: user with this email not found\n");
+      res.send("Error 403: wrong password\n");
     }
+  } else {
+    res.status(403);
+    res.send("Error 403: user with this email not found\n");
+  }
 });
 
 /*
